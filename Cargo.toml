@@ -1,0 +1,8 @@
+[package]
+name = "hourglass"
+version = "0.1.0"
+edition = "2021"
+
+[workspace]
+default-members = ["apps/*"]
+members = ["apps/*", "crates/*"]
