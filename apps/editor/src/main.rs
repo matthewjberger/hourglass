@@ -1,3 +1,3 @@
 fn main() {
-    println!("Hello, world!");
+    hourglass::app::App {}.run()
 }

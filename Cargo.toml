@@ -6,3 +6,6 @@ edition = "2021"
 [workspace]
 default-members = ["apps/*"]
 members = ["apps/*", "crates/*"]
+
+[dependencies]
+app = { path = "crates/app" }
