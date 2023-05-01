@@ -4,7 +4,9 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+async-trait = "0.1.68"
 gilrs = "0.10.1"
+ecs = { path = "../ecs" }
 log = "0.4.17"
 image = "0.24.6"
 thiserror = "1.0.40"

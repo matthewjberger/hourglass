@@ -158,15 +158,16 @@ async fn worker(
 	let mut state_machine = StateMachine::new(initial_state);
 	let mut context = Context::default();
 
-	state_machine.start(&mut context).unwrap();
+	state_machine.start(&mut context).await.unwrap();
 
 	loop {
 		while let Ok(message) = worker_receiver.try_recv() {
 			match message {
 				WorkerMessage::Resized { width, height } => {
 					log::info!("Resized: ({width}, {height})");
-					if let Err(error) =
-						state_machine.on_resize(&mut context, &PhysicalSize { width, height })
+					if let Err(error) = state_machine
+						.on_resize(&mut context, &PhysicalSize { width, height })
+						.await
 					{
 						log::warn!("{error}");
 					}
@@ -180,11 +181,14 @@ async fn worker(
 
 		if let Some(gilrs) = context.gilrs.as_mut() {
 			if let Some(event) = gilrs.next_event() {
-				state_machine.on_gamepad_event(&mut context, event).unwrap();
+				state_machine
+					.on_gamepad_event(&mut context, event)
+					.await
+					.unwrap();
 			}
 		}
 
-		if let Err(error) = state_machine.update(&mut context) {
+		if let Err(error) = state_machine.update(&mut context).await {
 			log::warn!("{error}");
 		}
 

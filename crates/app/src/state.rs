@@ -1,4 +1,6 @@
 #![allow(dead_code)]
+
+use async_trait::async_trait;
 use gilrs::{Event as GilrsEvent, Gilrs};
 use std::path::Path;
 use thiserror::Error;
@@ -25,32 +27,33 @@ pub struct Context {
 pub struct EmptyState {}
 impl State for EmptyState {}
 
+#[async_trait]
 pub trait State: Send + 'static {
 	fn label(&self) -> String {
 		"Unlabeled Game State".to_string()
 	}
 
-	fn on_start(&mut self, _context: &mut Context) -> StateResult<()> {
+	async fn on_start(&mut self, _context: &mut Context) -> StateResult<()> {
 		Ok(())
 	}
 
-	fn on_pause(&mut self, _context: &mut Context) -> StateResult<()> {
+	async fn on_pause(&mut self, _context: &mut Context) -> StateResult<()> {
 		Ok(())
 	}
 
-	fn on_stop(&mut self, _context: &mut Context) -> StateResult<()> {
+	async fn on_stop(&mut self, _context: &mut Context) -> StateResult<()> {
 		Ok(())
 	}
 
-	fn on_resume(&mut self, _context: &mut Context) -> StateResult<()> {
+	async fn on_resume(&mut self, _context: &mut Context) -> StateResult<()> {
 		Ok(())
 	}
 
-	fn update(&mut self, _context: &mut Context) -> StateResult<Transition> {
+	async fn update(&mut self, _context: &mut Context) -> StateResult<Transition> {
 		Ok(Transition::None)
 	}
 
-	fn on_gamepad_event(
+	async fn on_gamepad_event(
 		&mut self,
 		_context: &mut Context,
 		_event: GilrsEvent,
@@ -58,11 +61,15 @@ pub trait State: Send + 'static {
 		Ok(Transition::None)
 	}
 
-	fn on_file_dropped(&mut self, _context: &mut Context, _path: &Path) -> StateResult<Transition> {
+	async fn on_file_dropped(
+		&mut self,
+		_context: &mut Context,
+		_path: &Path,
+	) -> StateResult<Transition> {
 		Ok(Transition::None)
 	}
 
-	fn on_resize(
+	async fn on_resize(
 		&mut self,
 		_context: &mut Context,
 		_physical_size: &PhysicalSize<u32>,
@@ -70,7 +77,7 @@ pub trait State: Send + 'static {
 		Ok(Transition::None)
 	}
 
-	fn on_mouse(
+	async fn on_mouse(
 		&mut self,
 		_context: &mut Context,
 		_button: &MouseButton,
@@ -79,7 +86,11 @@ pub trait State: Send + 'static {
 		Ok(Transition::None)
 	}
 
-	fn on_key(&mut self, _context: &mut Context, _input: KeyboardInput) -> StateResult<Transition> {
+	async fn on_key(
+		&mut self,
+		_context: &mut Context,
+		_input: KeyboardInput,
+	) -> StateResult<Transition> {
 		Ok(Transition::None)
 	}
 }
@@ -105,34 +116,34 @@ impl StateMachine {
 		}
 	}
 
-	pub fn active_state_label(&self) -> Option<String> {
+	pub async fn active_state_label(&self) -> Option<String> {
 		if !self.running {
 			return None;
 		}
 		self.states.last().map(|state| state.label())
 	}
 
-	pub fn is_running(&self) -> bool {
+	pub async fn is_running(&self) -> bool {
 		self.running
 	}
 
-	pub fn start(&mut self, context: &mut Context) -> StateResult<()> {
+	pub async fn start(&mut self, context: &mut Context) -> StateResult<()> {
 		if self.running {
 			return Ok(());
 		}
 		self.running = true;
-		self.active_state_mut()?.on_start(context)
+		self.active_state_mut()?.on_start(context).await
 	}
 
-	pub fn update(&mut self, context: &mut Context) -> StateResult<()> {
+	pub async fn update(&mut self, context: &mut Context) -> StateResult<()> {
 		if !self.running {
 			return Ok(());
 		}
-		let transition = self.active_state_mut()?.update(context)?;
-		self.transition(transition, context)
+		let transition = self.active_state_mut()?.update(context).await?;
+		self.transition(transition, context).await
 	}
 
-	pub fn on_gamepad_event(
+	pub async fn on_gamepad_event(
 		&mut self,
 		context: &mut Context,
 		event: GilrsEvent,
@@ -140,19 +151,25 @@ impl StateMachine {
 		if !self.running {
 			return Ok(());
 		}
-		let transition = self.active_state_mut()?.on_gamepad_event(context, event)?;
-		self.transition(transition, context)
+		let transition = self
+			.active_state_mut()?
+			.on_gamepad_event(context, event)
+			.await?;
+		self.transition(transition, context).await
 	}
 
-	pub fn on_file_dropped(&mut self, context: &mut Context, path: &Path) -> StateResult<()> {
+	pub async fn on_file_dropped(&mut self, context: &mut Context, path: &Path) -> StateResult<()> {
 		if !self.running {
 			return Ok(());
 		}
-		let transition = self.active_state_mut()?.on_file_dropped(context, path)?;
-		self.transition(transition, context)
+		let transition = self
+			.active_state_mut()?
+			.on_file_dropped(context, path)
+			.await?;
+		self.transition(transition, context).await
 	}
 
-	pub fn on_resize(
+	pub async fn on_resize(
 		&mut self,
 		context: &mut Context,
 		physical_size: &PhysicalSize<u32>,
@@ -160,11 +177,14 @@ impl StateMachine {
 		if !self.running {
 			return Ok(());
 		}
-		let transition = self.active_state_mut()?.on_resize(context, physical_size)?;
-		self.transition(transition, context)
+		let transition = self
+			.active_state_mut()?
+			.on_resize(context, physical_size)
+			.await?;
+		self.transition(transition, context).await
 	}
 
-	pub fn on_mouse(
+	pub async fn on_mouse(
 		&mut self,
 		context: &mut Context,
 		button: &MouseButton,
@@ -175,28 +195,29 @@ impl StateMachine {
 		}
 		let transition = self
 			.active_state_mut()?
-			.on_mouse(context, button, button_state)?;
-		self.transition(transition, context)
+			.on_mouse(context, button, button_state)
+			.await?;
+		self.transition(transition, context).await
 	}
 
-	pub fn on_key(&mut self, context: &mut Context, input: KeyboardInput) -> StateResult<()> {
+	pub async fn on_key(&mut self, context: &mut Context, input: KeyboardInput) -> StateResult<()> {
 		if !self.running {
 			return Ok(());
 		}
-		let transition = self.active_state_mut()?.on_key(context, input)?;
-		self.transition(transition, context)
+		let transition = self.active_state_mut()?.on_key(context, input).await?;
+		self.transition(transition, context).await
 	}
 
-	fn transition(&mut self, request: Transition, context: &mut Context) -> StateResult<()> {
+	async fn transition(&mut self, request: Transition, context: &mut Context) -> StateResult<()> {
 		if !self.running {
 			return Ok(());
 		}
 		match request {
 			Transition::None => Ok(()),
-			Transition::Pop => self.pop(context),
-			Transition::Push(state) => self.push(state, context),
-			Transition::Switch(state) => self.switch(state, context),
-			Transition::Quit => self.stop(context),
+			Transition::Pop => self.pop(context).await,
+			Transition::Push(state) => self.push(state, context).await,
+			Transition::Switch(state) => self.switch(state, context).await,
+			Transition::Quit => self.stop(context).await,
 		}
 	}
 
@@ -206,51 +227,51 @@ impl StateMachine {
 			.ok_or(StateMachineError::NoStatesPresent)
 	}
 
-	fn switch(&mut self, state: Box<dyn State>, context: &mut Context) -> StateResult<()> {
+	async fn switch(&mut self, state: Box<dyn State>, context: &mut Context) -> StateResult<()> {
 		if !self.running {
 			return Ok(());
 		}
 		if let Some(mut state) = self.states.pop() {
-			state.on_stop(context)?;
+			state.on_stop(context).await?;
 		}
 		self.states.push(state);
-		self.active_state_mut()?.on_start(context)
+		self.active_state_mut()?.on_start(context).await
 	}
 
-	fn push(&mut self, state: Box<dyn State>, context: &mut Context) -> StateResult<()> {
+	async fn push(&mut self, state: Box<dyn State>, context: &mut Context) -> StateResult<()> {
 		if !self.running {
 			return Ok(());
 		}
 		if let Ok(state) = self.active_state_mut() {
-			state.on_pause(context)?;
+			state.on_pause(context).await?;
 		}
 		self.states.push(state);
-		self.active_state_mut()?.on_start(context)
+		self.active_state_mut()?.on_start(context).await
 	}
 
-	fn pop(&mut self, context: &mut Context) -> StateResult<()> {
+	async fn pop(&mut self, context: &mut Context) -> StateResult<()> {
 		if !self.running {
 			return Ok(());
 		}
 
 		if let Some(mut state) = self.states.pop() {
-			state.on_stop(context)?;
+			state.on_stop(context).await?;
 		}
 
 		if let Some(state) = self.states.last_mut() {
-			state.on_resume(context)
+			state.on_resume(context).await
 		} else {
 			self.running = false;
 			Ok(())
 		}
 	}
 
-	pub fn stop(&mut self, context: &mut Context) -> StateResult<()> {
+	pub async fn stop(&mut self, context: &mut Context) -> StateResult<()> {
 		if !self.running {
 			return Ok(());
 		}
 		while let Some(mut state) = self.states.pop() {
-			state.on_stop(context)?;
+			state.on_stop(context).await?;
 		}
 		self.running = false;
 		Ok(())
