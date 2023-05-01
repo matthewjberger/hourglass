@@ -155,10 +155,7 @@ impl World {
 	}
 
 	pub fn create_entities(&mut self, count: usize) -> Vec<Entity> {
-		(0..count)
-			.into_iter()
-			.map(|_index| self.allocator.allocate())
-			.collect()
+		(0..count).map(|_index| self.allocator.allocate()).collect()
 	}
 
 	pub fn remove_entity(&mut self, entity: Entity) {

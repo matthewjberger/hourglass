@@ -131,7 +131,7 @@ impl App {
 			};
 
 			if let Err(error) = process_event() {
-				eprintln!("Error: {error}");
+				log::error!("Error: {error}");
 			}
 		});
 	}

@@ -1,4 +1,7 @@
+#![forbid(unsafe_code)]
+
 use hourglass::app::{
+	log,
 	tokio::{self, sync::mpsc},
 	winit::event_loop::EventLoopProxy,
 	App, AppConfig, AppMessage, TaskResult, WorkerMessage,
@@ -20,10 +23,10 @@ async fn worker(
 		while let Ok(message) = worker_receiver.try_recv() {
 			match message {
 				WorkerMessage::Resized { width, height } => {
-					println!("Resized: ({width}, {height})");
+					log::info!("Resized: ({width}, {height})");
 				}
 				WorkerMessage::Exit => {
-					println!("Finalizing...");
+					log::info!("Finalizing...");
 					proxy.send_event(AppMessage::Exit)?;
 				}
 			}

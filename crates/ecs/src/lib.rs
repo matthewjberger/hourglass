@@ -1,5 +1,4 @@
 #![forbid(unsafe_code)]
-#![forbid(clippy::all, clippy::nursery, clippy::cargo)]
 
 pub mod resource;
 pub mod vec;
