@@ -4,4 +4,8 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+log = "0.4.17"
+image = "0.24.6"
 thiserror = "1.0.40"
+tokio = { version = "1.16.1", features = ["full"] }
+winit = "0.28.3"
