@@ -1,36 +1,14 @@
 #![forbid(unsafe_code)]
 
-use hourglass::app::{
-	log,
-	tokio::{self, sync::mpsc},
-	winit::event_loop::EventLoopProxy,
-	App, AppConfig, AppMessage, TaskResult, WorkerMessage,
-};
+mod editor;
+
+use editor::Editor;
+use hourglass::app::{tokio, App, AppConfig};
 use std::error::Error;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
 	let app = App::new(&AppConfig::default())?;
-	app.run(worker);
+	app.run(Editor::default());
 	Ok(())
-}
-
-async fn worker(
-	proxy: EventLoopProxy<AppMessage>,
-	mut worker_receiver: mpsc::UnboundedReceiver<WorkerMessage>,
-) -> TaskResult {
-	loop {
-		while let Ok(message) = worker_receiver.try_recv() {
-			match message {
-				WorkerMessage::Resized { width, height } => {
-					log::info!("Resized: ({width}, {height})");
-				}
-				WorkerMessage::Exit => {
-					log::info!("Finalizing...");
-					proxy.send_event(AppMessage::Exit)?;
-				}
-			}
-		}
-		tokio::time::sleep(std::time::Duration::from_millis(500)).await;
-	}
 }

@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+gilrs = "0.10.1"
 log = "0.4.17"
 image = "0.24.6"
 thiserror = "1.0.40"

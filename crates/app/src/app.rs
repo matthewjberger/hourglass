@@ -1,5 +1,6 @@
+use crate::state::{Context, State, StateMachine};
 use image::io::Reader;
-use std::{future::Future, io};
+use std::io;
 use thiserror::Error;
 use tokio::{sync::mpsc, task};
 use winit::{
@@ -10,9 +11,6 @@ use winit::{
 	event_loop::{ControlFlow, EventLoop, EventLoopBuilder, EventLoopProxy},
 	window::{Icon, WindowBuilder},
 };
-
-pub type Proxy = EventLoopProxy<AppMessage>;
-pub type WorkerReceiver = mpsc::UnboundedReceiver<WorkerMessage>;
 
 #[derive(Error, Debug)]
 pub enum Error {
@@ -27,6 +25,15 @@ pub enum Error {
 
 	#[error("Failed to open icon file at path: {1}")]
 	OpenIconFile(#[source] io::Error, String),
+
+	#[error("Failed to start the state machine!")]
+	StartStateMachine(#[source] Box<dyn std::error::Error>),
+
+	#[error("Failed to stop the state machine!")]
+	StopStateMachine(#[source] Box<dyn std::error::Error>),
+
+	#[error("Failed to update the state machine!")]
+	UpdateStateMachine(#[source] Box<dyn std::error::Error>),
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -90,16 +97,12 @@ impl App {
 		Ok(Self { window, event_loop })
 	}
 
-	pub fn run<T, Fut>(self, task: T)
-	where
-		T: FnOnce(Proxy, WorkerReceiver) -> Fut + std::marker::Send + 'static,
-		Fut: Future<Output = TaskResult> + Send,
-	{
+	pub fn run(self, initial_state: impl State) {
 		let Self { event_loop, window } = self;
 
 		let (worker_sender, worker_receiver) = mpsc::unbounded_channel();
 		let proxy = event_loop.create_proxy();
-		task::spawn(async { task(proxy, worker_receiver).await });
+		task::spawn(worker(proxy, worker_receiver, initial_state));
 
 		event_loop.run(move |event, _, control_flow| {
 			*control_flow = ControlFlow::Poll;
@@ -118,7 +121,6 @@ impl App {
 						}
 					}
 
-					// Receive user events from the async task
 					Event::UserEvent(message) => match message {
 						AppMessage::Exit => {
 							*control_flow = ControlFlow::Exit;
@@ -146,4 +148,46 @@ fn load_icon(icon_path: &String) -> Result<Icon, Error> {
 	let (width, height) = image.dimensions();
 	let icon = Icon::from_rgba(image.into_raw(), width, height).map_err(Error::CreateIcon)?;
 	Ok(icon)
+}
+
+async fn worker(
+	proxy: EventLoopProxy<AppMessage>,
+	mut worker_receiver: mpsc::UnboundedReceiver<WorkerMessage>,
+	initial_state: impl State,
+) -> TaskResult {
+	let mut state_machine = StateMachine::new(initial_state);
+	let mut context = Context::default();
+
+	state_machine.start(&mut context).unwrap();
+
+	loop {
+		while let Ok(message) = worker_receiver.try_recv() {
+			match message {
+				WorkerMessage::Resized { width, height } => {
+					log::info!("Resized: ({width}, {height})");
+					if let Err(error) =
+						state_machine.on_resize(&mut context, &PhysicalSize { width, height })
+					{
+						log::warn!("{error}");
+					}
+				}
+				WorkerMessage::Exit => {
+					log::info!("Finalizing...");
+					proxy.send_event(AppMessage::Exit)?;
+				}
+			}
+		}
+
+		if let Some(gilrs) = context.gilrs.as_mut() {
+			if let Some(event) = gilrs.next_event() {
+				state_machine.on_gamepad_event(&mut context, event).unwrap();
+			}
+		}
+
+		if let Err(error) = state_machine.update(&mut context) {
+			log::warn!("{error}");
+		}
+
+		tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+	}
 }
