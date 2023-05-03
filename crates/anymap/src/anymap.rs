@@ -4,17 +4,17 @@ use std::{
 };
 
 #[derive(Default)]
-pub struct ResourceMap {
+pub struct AnyMap {
 	data: HashMap<TypeId, Box<dyn Any + 'static>>,
 }
 
-impl ResourceMap {
+impl AnyMap {
 	pub fn new() -> Self {
 		Self::default()
 	}
 }
 
-impl ResourceMap {
+impl AnyMap {
 	/// Retrieve the value stored in the map for the type `T`, if it exists.
 	pub fn get<T: 'static>(&self) -> Option<&T> {
 		self.data
@@ -43,7 +43,7 @@ impl ResourceMap {
 
 #[cfg(test)]
 mod tests {
-	use super::ResourceMap;
+	use super::AnyMap;
 
 	#[derive(Debug, Default, PartialEq, Eq, Copy, Clone)]
 	pub struct Viewport {
@@ -53,7 +53,7 @@ mod tests {
 
 	#[test]
 	fn resources() {
-		let mut resources = ResourceMap::new();
+		let mut resources = AnyMap::new();
 
 		resources.insert(Viewport::default());
 		assert_eq!(resources.get::<Viewport>(), Some(&Viewport::default()));

@@ -1,5 +1,4 @@
 use self::error::GenerationError;
-use crate::error::Result;
 use std::ops::{Deref, DerefMut};
 
 pub mod error {
@@ -31,6 +30,8 @@ pub mod error {
 		}
 	}
 }
+
+pub type Result<T, E = Box<dyn std::error::Error>> = std::result::Result<T, E>;
 
 pub type SlotVec<T> = Vec<Option<Slot<T>>>;
 
@@ -224,7 +225,6 @@ impl HandleAllocator {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::error::Result;
 
 	#[test]
 	fn insertion_and_removal() -> Result<()> {

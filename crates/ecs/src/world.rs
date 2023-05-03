@@ -1,8 +1,6 @@
-use crate::{
-	error::Result,
-	resource::ResourceMap,
-	vec::{error::HandleNotFoundError, GenerationalVec, Handle, HandleAllocator, SlotVec},
-};
+use crate::error::Result;
+use anymap::AnyMap;
+use genvec::{error::HandleNotFoundError, GenerationalVec, Handle, HandleAllocator, SlotVec};
 use std::{
 	any::TypeId,
 	cell::{Ref, RefCell, RefMut},
@@ -22,12 +20,6 @@ pub type Entity = Handle;
 pub type ComponentVecHandle = Rc<RefCell<ComponentVec>>;
 pub type Component = Box<dyn std::any::Any + 'static>;
 pub type ComponentVec = GenerationalVec<Component>;
-
-impl Default for ComponentVec {
-	fn default() -> Self {
-		GenerationalVec::new(SlotVec::<Component>::default())
-	}
-}
 
 #[macro_export]
 macro_rules! component_vec {
@@ -136,7 +128,7 @@ macro_rules! system {
 
 #[derive(Default)]
 pub struct World {
-	resources: Rc<RefCell<ResourceMap>>,
+	resources: Rc<RefCell<AnyMap>>,
 	components: ComponentMap,
 	allocator: HandleAllocator,
 }
@@ -146,7 +138,7 @@ impl World {
 		Self::default()
 	}
 
-	pub const fn resources(&self) -> &Rc<RefCell<ResourceMap>> {
+	pub const fn resources(&self) -> &Rc<RefCell<AnyMap>> {
 		&self.resources
 	}
 
@@ -194,7 +186,11 @@ impl World {
 		let mut components = self
 			.components
 			.entry(TypeId::of::<T>())
-			.or_insert_with(|| Rc::new(RefCell::new(ComponentVec::default())))
+			.or_insert_with(|| {
+				Rc::new(RefCell::new(GenerationalVec::new(
+					SlotVec::<Component>::default(),
+				)))
+			})
 			.borrow_mut();
 
 		match value {
