@@ -280,4 +280,92 @@ mod tests {
 
 		Ok(())
 	}
+
+	#[test]
+	fn test_insert() {
+		let mut vec = GenerationalVec::new(Vec::new());
+
+		let handle = HandleAllocator::new().allocate();
+		assert!(vec.insert(handle, 10).is_ok());
+
+		assert_eq!(*vec.get(handle).unwrap(), 10);
+	}
+
+	#[test]
+	fn test_remove() {
+		let mut vec = GenerationalVec::new(Vec::new());
+
+		let handle = HandleAllocator::new().allocate();
+		vec.insert(handle, 10).unwrap();
+
+		vec.remove(handle);
+
+		assert!(vec.get(handle).is_none());
+	}
+
+	#[test]
+	fn test_get_mut() {
+		let mut vec = GenerationalVec::new(Vec::new());
+
+		let handle = HandleAllocator::new().allocate();
+		vec.insert(handle, 10).unwrap();
+
+		*vec.get_mut(handle).unwrap() = 20;
+
+		assert_eq!(*vec.get(handle).unwrap(), 20);
+	}
+
+	#[test]
+	fn test_invalid_generation() {
+		let mut vec = GenerationalVec::new(Vec::new());
+
+		let handle = HandleAllocator::new().allocate();
+		vec.insert(handle, 10).unwrap();
+
+		// Modify the handle to have an invalid generation
+		let invalid_handle = Handle {
+			generation: handle.generation() + 1,
+			..handle
+		};
+
+		assert!(vec.get(invalid_handle).is_none());
+		assert!(vec.get_mut(invalid_handle).is_none());
+	}
+
+	#[test]
+	fn test_generational_vec() -> Result<(), Box<dyn std::error::Error>> {
+		let mut allocator = HandleAllocator::new();
+		let handle1 = allocator.allocate();
+		let handle2 = allocator.allocate();
+		let handle3 = allocator.allocate();
+
+		let mut vec = GenerationalVec::new(Vec::new());
+
+		assert!(vec.get(handle1).is_none());
+		assert!(vec.get(handle2).is_none());
+		assert!(vec.get(handle3).is_none());
+
+		vec.insert(handle1, "value1".to_string())?;
+		vec.insert(handle2, "value2".to_string())?;
+		vec.insert(handle3, "value3".to_string())?;
+
+		assert_eq!(vec.get(handle1), Some(&"value1".to_string()));
+		assert_eq!(vec.get(handle2), Some(&"value2".to_string()));
+		assert_eq!(vec.get(handle3), Some(&"value3".to_string()));
+
+		vec.remove(handle1);
+		assert!(vec.get(handle1).is_none());
+		assert_eq!(vec.get(handle2), Some(&"value2".to_string()));
+		assert_eq!(vec.get(handle3), Some(&"value3".to_string()));
+
+		allocator.deallocate(&handle1);
+		allocator.deallocate(&handle2);
+		allocator.deallocate(&handle3);
+
+		assert!(!allocator.is_allocated(&handle1));
+		assert!(!allocator.is_allocated(&handle2));
+		assert!(!allocator.is_allocated(&handle3));
+
+		Ok(())
+	}
 }
