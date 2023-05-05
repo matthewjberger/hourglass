@@ -78,15 +78,17 @@ macro_rules! izip {
     };
 }
 
-// TODO: make systems accessing unregistered components recoverable (maybe by auto registering
-// types)
 #[macro_export]
 macro_rules! system {
 	($fn:tt, [$resources:ident, $entity:ident], ($($arg:ident: $arg_type:ty),*), ($component_name:ident: $component_type:ty) -> $result:ty {$($body:tt)*}) => {
 		pub fn $fn($($arg: $arg_type,)* world: &mut World) -> $result {
+			if world.get_component_vec_mut::<$component_type>().is_none() {
+				return Ok(())
+			}
+
 			world
 				.get_component_vec_mut::<$component_type>()
-				.unwrap_or_else(|| panic!("System accessed an unregistered component type: {:?}", stringify!($component_type)))
+				.unwrap()
 				.iter_mut()
 				.enumerate()
 				.filter_map(|(entity, $component_name)| match ($component_name) {
@@ -104,9 +106,15 @@ macro_rules! system {
 
     ($fn:tt, [$resources:ident, $entity:ident], ($($arg:ident: $arg_type:ty),*), ($($component_name:ident: $component_type:ty),*) -> $result:ty {$($body:tt)*}) => {
 		pub fn $fn($($arg: $arg_type,)* world: &mut World) -> $result {
+			$(
+				if world.get_component_vec_mut::<$component_type>().is_none() {
+					return Ok(())
+				}
+			)*
+
 			izip!(
 				$(
-					world.get_component_vec_mut::<$component_type>().unwrap_or_else(|| panic!("System accessed an unregistered component type: {:?}", stringify!($component_type))).iter_mut()
+					world.get_component_vec_mut::<$component_type>().unwrap().iter_mut()
 				),*
 			)
 			.enumerate()
@@ -444,18 +452,9 @@ mod tests {
 	}
 
 	#[test]
-	#[should_panic]
-	fn unregistered_component() {
-		World::default()
-			.get_component_vec_mut::<Position>()
-			.unwrap();
-	}
-
-	#[test]
-	#[should_panic]
 	fn system_accessed_unregistered_component() {
 		let mut world = World::new();
-		translation_system(0.14, &mut world).unwrap();
+		assert!(translation_system(0.14, &mut world).is_ok());
 	}
 
 	#[test]
