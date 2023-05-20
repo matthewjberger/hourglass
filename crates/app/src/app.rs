@@ -1,4 +1,4 @@
-use crate::state::{Context, State, StateMachine};
+use crate::state::{State, StateMachine};
 use image::io::Reader;
 use std::io;
 use thiserror::Error;
@@ -25,15 +25,6 @@ pub enum Error {
 
 	#[error("Failed to open icon file at path: {1}")]
 	OpenIconFile(#[source] io::Error, String),
-
-	#[error("Failed to start the state machine!")]
-	StartStateMachine(#[source] Box<dyn std::error::Error>),
-
-	#[error("Failed to stop the state machine!")]
-	StopStateMachine(#[source] Box<dyn std::error::Error>),
-
-	#[error("Failed to update the state machine!")]
-	UpdateStateMachine(#[source] Box<dyn std::error::Error>),
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -62,24 +53,28 @@ impl Default for AppConfig {
 pub type TaskResult = Result<(), Box<dyn std::error::Error + Send + Sync>>;
 
 #[derive(Debug, Clone)]
-pub enum AppMessage {
+pub enum WorkerRequest {
 	Exit,
 }
 
 #[derive(Debug, Clone)]
-pub enum WorkerMessage {
+pub enum AppEvent {
 	Resized { width: u32, height: u32 },
 	Exit,
 }
 
+pub struct Context {
+	pub app_proxy: EventLoopProxy<WorkerRequest>,
+}
+
 pub struct App {
-	event_loop: EventLoop<AppMessage>,
+	event_loop: EventLoop<WorkerRequest>,
 	window: winit::window::Window,
 }
 
 impl App {
 	pub fn new(config: &AppConfig) -> Result<Self> {
-		let event_loop = EventLoopBuilder::<AppMessage>::with_user_event().build();
+		let event_loop = EventLoopBuilder::<WorkerRequest>::with_user_event().build();
 
 		let mut window_builder = WindowBuilder::new()
 			.with_title(config.title.to_string())
@@ -97,7 +92,7 @@ impl App {
 		Ok(Self { window, event_loop })
 	}
 
-	pub fn run(self, initial_state: impl State) {
+	pub fn run(self, initial_state: impl State<Context, AppEvent>) {
 		let Self { event_loop, window } = self;
 
 		let (worker_sender, worker_receiver) = mpsc::unbounded_channel();
@@ -109,20 +104,22 @@ impl App {
 
 			let process_event = || -> Result<(), Box<dyn std::error::Error>> {
 				match event {
+					// Respond to winit events by notifying the background worker
 					Event::WindowEvent { window_id, event } if window_id == window.id() => {
 						match event {
 							WindowEvent::CloseRequested => {
-								worker_sender.send(WorkerMessage::Exit)?;
+								worker_sender.send(AppEvent::Exit)?;
 							}
 							WindowEvent::Resized(PhysicalSize { width, height }) => {
-								worker_sender.send(WorkerMessage::Resized { width, height })?
+								worker_sender.send(AppEvent::Resized { width, height })?
 							}
 							_ => {}
 						}
 					}
 
+					// These events are sent the background worker
 					Event::UserEvent(message) => match message {
-						AppMessage::Exit => {
+						WorkerRequest::Exit => {
 							*control_flow = ControlFlow::Exit;
 						}
 					},
@@ -151,41 +148,18 @@ fn load_icon(icon_path: &String) -> Result<Icon, Error> {
 }
 
 async fn worker(
-	proxy: EventLoopProxy<AppMessage>,
-	mut worker_receiver: mpsc::UnboundedReceiver<WorkerMessage>,
-	initial_state: impl State,
+	app_proxy: EventLoopProxy<WorkerRequest>,
+	mut worker_receiver: mpsc::UnboundedReceiver<AppEvent>,
+	initial_state: impl State<Context, AppEvent>,
 ) -> TaskResult {
 	let mut state_machine = StateMachine::new(initial_state);
-	let mut context = Context::default();
 
-	state_machine.start(&mut context).await.unwrap();
+	let mut context = Context { app_proxy };
+	state_machine.start(&mut context).await?;
 
 	loop {
-		while let Ok(message) = worker_receiver.try_recv() {
-			match message {
-				WorkerMessage::Resized { width, height } => {
-					log::info!("Resized: ({width}, {height})");
-					if let Err(error) = state_machine
-						.on_resize(&mut context, &PhysicalSize { width, height })
-						.await
-					{
-						log::warn!("{error}");
-					}
-				}
-				WorkerMessage::Exit => {
-					log::info!("Finalizing...");
-					proxy.send_event(AppMessage::Exit)?;
-				}
-			}
-		}
-
-		if let Some(gilrs) = context.gilrs.as_mut() {
-			if let Some(event) = gilrs.next_event() {
-				state_machine
-					.on_gamepad_event(&mut context, event)
-					.await
-					.unwrap();
-			}
+		while let Ok(mut event) = worker_receiver.try_recv() {
+			state_machine.on_event(&mut context, &mut event).await?;
 		}
 
 		if let Err(error) = state_machine.update(&mut context).await {

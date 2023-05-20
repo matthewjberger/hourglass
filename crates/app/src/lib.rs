@@ -4,8 +4,8 @@ mod app;
 mod state;
 
 pub use self::{
-	app::{App, AppConfig, AppMessage, TaskResult, WorkerMessage},
-	state::{Context, State, StateResult, Transition},
+	app::{App, AppConfig, AppEvent, Context, WorkerRequest},
+	state::{State, StateResult, Transition},
 };
 pub use async_trait;
 pub use log;

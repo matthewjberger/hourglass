@@ -10,6 +10,6 @@ use std::error::Error;
 async fn main() -> Result<(), Box<dyn Error>> {
 	env_logger::init();
 	let app = App::new(&AppConfig::default())?;
-	app.run(Editor::default());
+	app.run(Editor);
 	Ok(())
 }

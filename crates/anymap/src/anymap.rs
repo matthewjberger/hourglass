@@ -59,7 +59,7 @@ mod tests {
 		assert_eq!(resources.get::<Viewport>(), Some(&Viewport::default()));
 
 		let (width, height) = (1920, 1080);
-		let mut viewport = resources.get_mut::<Viewport>().unwrap();
+		let viewport = resources.get_mut::<Viewport>().unwrap();
 		viewport.width = width;
 		viewport.height = height;
 		assert_eq!(

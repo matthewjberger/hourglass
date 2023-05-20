@@ -127,7 +127,7 @@ macro_rules! system {
 				},
 				_ => None,
 			})
-			.try_for_each(|($resources, $entity, $(mut $component_name,)*)| {
+			.try_for_each(|($resources, $entity, $($component_name,)*)| {
 				$($body)*
 			})
 		}
