@@ -219,7 +219,7 @@ mod tests {
 		let state = MockState::new("TestState", counter.clone());
 		let state_machine = StateMachine::new(state);
 
-		assert_eq!(state_machine.is_running().await, false);
+		assert!(!state_machine.is_running().await);
 		assert_eq!(state_machine.active_state_label().await, None);
 	}
 
@@ -228,11 +228,10 @@ mod tests {
 		let counter = Arc::new(Mutex::new(0));
 		let state = MockState::new("TestState", counter.clone());
 		let mut state_machine = StateMachine::new(state);
-		let mut context = ();
 
-		state_machine.start(&mut context).await.unwrap();
+		state_machine.start(&mut ()).await.unwrap();
 
-		assert_eq!(state_machine.is_running().await, true);
+		assert!(state_machine.is_running().await);
 		assert_eq!(
 			state_machine.active_state_label().await,
 			Some("TestState".to_string())
@@ -245,13 +244,12 @@ mod tests {
 		let counter = Arc::new(Mutex::new(0));
 		let state = MockState::new("TestState", counter.clone());
 		let mut state_machine = StateMachine::new(state);
-		let mut context = ();
 
-		state_machine.start(&mut context).await.unwrap();
+		state_machine.start(&mut ()).await.unwrap();
 
 		let state2 = MockState::new("TestState2", counter.clone());
 		state_machine
-			.transition(Transition::Push(Box::new(state2)), &mut context)
+			.transition(Transition::Push(Box::new(state2)), &mut ())
 			.await
 			.unwrap();
 
@@ -261,7 +259,7 @@ mod tests {
 		);
 
 		state_machine
-			.transition(Transition::Pop, &mut context)
+			.transition(Transition::Pop, &mut ())
 			.await
 			.unwrap();
 
@@ -276,12 +274,11 @@ mod tests {
 		let counter = Arc::new(Mutex::new(0));
 		let state = MockState::new("TestState", counter.clone());
 		let mut state_machine = StateMachine::new(state);
-		let mut context = ();
 
-		state_machine.start(&mut context).await.unwrap();
-		state_machine.stop(&mut context).await.unwrap();
+		state_machine.start(&mut ()).await.unwrap();
+		state_machine.stop(&mut ()).await.unwrap();
 
-		assert_eq!(state_machine.is_running().await, false);
+		assert!(!state_machine.is_running().await);
 		assert_eq!(state_machine.active_state_label().await, None);
 	}
 }

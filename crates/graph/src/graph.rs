@@ -38,12 +38,15 @@ pub struct Graph<T, E> {
 	adjacency_list: HashMap<NodeId, Vec<(NodeId, E)>>,
 }
 
+impl<T, E> Default for Graph<T, E> {
+	fn default() -> Self {
+		Self::new()
+	}
+}
+
 impl<T, E> Graph<T, E> {
 	pub fn new() -> Self {
-		Self {
-			nodes: HashMap::new(),
-			adjacency_list: HashMap::new(),
-		}
+		Self::default()
 	}
 
 	pub fn add_node(&mut self, data: T) -> NodeId {
