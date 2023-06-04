@@ -9,4 +9,6 @@ members = ["apps/*", "crates/*"]
 
 [dependencies]
 app = { path = "crates/app" }
+bus = { path = "crates/bus" }
 ecs = { path = "crates/ecs" }
+graph = { path = "crates/graph" }
